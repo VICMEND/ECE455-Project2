@@ -1,6 +1,7 @@
 /* Standard includes. */
 #include <stdint.h>
 #include <stdio.h>
+#include "list.h"
 #include "stm32f4_discovery.h"
 /* Kernel includes. */
 #include "stm32f4xx.h"
@@ -19,24 +20,32 @@
 #define user_task_LOW         (1) 
 #define user_task_HIGH        (configMAX_PRIORITIES - 4)
 
+#define RELEASE 1
+#define COMPLETE 2
+#define ACTIVE_LIST 3
+#define COMPLETE_LIST 4
+#define OVERDUE_LIST 5
+
+
 typedef enum { PERIODIC, APERIODIC } task_type; //WHERE DOES IT SAY WE NEED THIS????
 
 typedef struct dd_task {
     TaskHandle_t t_handle;
     task_type type;
-    uint16_t task_id;
-    uint16_t release_time;
-    uint16_t absolute_deadline;
-    uint16_t completion_time;
+    uint32_t task_id;
+    uint32_t release_time;
+    uint32_t absolute_deadline;
+    uint32_t completion_time;
 } dd_task;
 
+//there is a list.h that has pre-built list functionality we should use that instead because it apprently also has sorting. Ill try to implement it
 typedef struct dd_task_list {
     dd_task task;
     struct dd_task_list *next_task;
 } dd_task_list;
 
 typedef struct {
-    uint8_t msg_type; // 1: Release, 2: Complete, 3: Get Lists
+    uint8_t msg_type; // 1: Release, 2: Complete, 3: Get Active list
     dd_task task_info;
 } dds_msg;
 
@@ -50,8 +59,11 @@ static void monitor_task(void *pvParameters);
 static void dd_task_generator(void *pvParameters);
 static void user_defined_task(void *pvParameters);
 
-void release_dd_task(TaskHandle_t t_handle, task_type type, uint16_t task_id, uint16_t deadline);
-void complete_dd_task(uint16_t task_id);
+void release_dd_task(TaskHandle_t t_handle, task_type type, uint32_t task_id, uint32_t deadline);
+void complete_dd_task(uint32_t task_id);
+dd_task_list get_active_dd_task_list(void);
+dd_task_list get_complete_dd_task_list(void);
+dd_task_list get_overdue_dd_task_list(void);
 
 
 /*-----------------------------------------------------------*/
@@ -78,7 +90,7 @@ static void dds_task(void *pvParameters) {
     dds_msg rcvd_msg;
     for(;;) {
         if(xQueueReceive(xDDS_Queue, &rcvd_msg, portMAX_DELAY)) {
-            uint16_t current_time = xTaskGetTickCount();
+            uint32_t current_time = xTaskGetTickCount();
 
             if(rcvd_msg.msg_type == 1) { // RELEASE
                 rcvd_msg.task_info.release_time = current_time;
@@ -108,9 +120,9 @@ static void dds_task(void *pvParameters) {
 }
 
 /* --- Interface Implementations --- */
-void release_dd_task(TaskHandle_t t_handle, task_type type, uint16_t task_id, uint16_t deadline) {
+void release_dd_task(TaskHandle_t t_handle, task_type type, uint32_t task_id, uint32_t deadline) {
     dds_msg msg;
-    msg.msg_type = 1;
+    msg.msg_type = RELEASE;
     msg.task_info.t_handle = t_handle;
     msg.task_info.type = type;
     msg.task_info.task_id = task_id;
@@ -120,13 +132,35 @@ void release_dd_task(TaskHandle_t t_handle, task_type type, uint16_t task_id, ui
     xQueueSend(xDDS_Queue, &msg, 0);
 }
 
-void complete_dd_task(uint16_t task_id) {
+void complete_dd_task(uint32_t task_id) {
     dds_msg msg;
-    msg.msg_type = 2;
+    msg.msg_type = COMPLETE;
     msg.task_info.task_id = task_id;
     
     xQueueSend(xDDS_Queue, &msg, 0);
 }
+
+dd_task_list get_active_dd_task_list(void) {
+    dds_msg msg;
+    msg.msg_type = ACTIVE_LIST;
+    xQueueSend(xDDS_Queue, &msg, 0);
+}
+dd_task_list get_complete_dd_task_list(void) {
+    dds_msg msg;
+    msg.msg_type = COMPLETE_LIST;
+    xQueueSend(xDDS_Queue, &msg, 0);
+}
+dd_task_list get_overdue_dd_task_list(void) {
+    dds_msg msg;
+    msg.msg_type = OVERDUE_LIST;
+    xQueueSend(xDDS_Queue, &msg, 0);
+}
+
+#define RELEASE 1
+#define COMPLETE 2
+#define ACTIVE_LIST 3
+#define COMPLETE_LIST 4
+#define OVERDUE_LIST 5
 
 /* --- Auxiliary Tasks --- */
 static void dd_task_generator(void *pvParameters) {
@@ -139,7 +173,7 @@ static void dd_task_generator(void *pvParameters) {
     xTaskCreate(user_defined_task, "T3", 128, (void*)3, 0, &xTask3);
 
     for(;;) {
-        uint16_t now = xTaskGetTickCount();
+        uint32_t now = xTaskGetTickCount();
         
         // Example: Release Task 1 every 500ms [cite: 690]
         if (now % 500 == 0) {
@@ -152,7 +186,7 @@ static void dd_task_generator(void *pvParameters) {
 }
 
 static void user_defined_task(void *pvParameters) {
-    uint16_t my_id = (uint16_t)pvParameters;
+    uint32_t my_id = (uint32_t)pvParameters;
     for(;;) {
         // 1. Wait for a signal to start (e.g., a semaphore)
         // 2. Do "work" (empty loop) [cite: 636]
