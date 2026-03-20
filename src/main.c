@@ -22,9 +22,9 @@
 
 #define RELEASE 1
 #define COMPLETE 2
-#define ACTIVE_LIST 3
-#define COMPLETE_LIST 4
-#define OVERDUE_LIST 5
+#define GET_ACTIVE_LIST 3
+#define GET_COMPLETE_LIST 4
+#define GET_OVERDUE_LIST 5
 
 
 typedef enum { PERIODIC, APERIODIC } task_type; //WHERE DOES IT SAY WE NEED THIS????
@@ -92,15 +92,21 @@ static void dds_task(void *pvParameters) {
         if(xQueueReceive(xDDS_Queue, &rcvd_msg, portMAX_DELAY)) {
             uint32_t current_time = xTaskGetTickCount();
 
-            if(rcvd_msg.msg_type == 1) { // RELEASE
+            if(rcvd_msg.msg_type == RELEASE) { // RELEASE
                 rcvd_msg.task_info.release_time = current_time;
                 add_to_active_list(&active_list_head, rcvd_msg.task_info);
             } 
-            else if(rcvd_msg.msg_type == 2) { // COMPLETE
+            else if(rcvd_msg.msg_type == COMPLETE) { // COMPLETE
                 // 1. Find in Active List, move to Completed
                 // 2. Remove from Active List (Logic omitted for brevity)
                 rcvd_msg.task_info.completion_time = current_time;
                 move_to_list(&completed_list_head, rcvd_msg.task_info);
+            } else if(rcvd_msg.msg_type == GET_ACTIVE_LIST) {
+
+            } else if(rcvd_msg.msg_type == GET_COMPLETE_LIST) {
+
+            } else if(rcvd_msg.msg_type == GET_OVERDUE_LIST) {
+
             }
 
             // --- EDF PRIORITY SWAP ---
@@ -142,25 +148,19 @@ void complete_dd_task(uint32_t task_id) {
 
 dd_task_list get_active_dd_task_list(void) {
     dds_msg msg;
-    msg.msg_type = ACTIVE_LIST;
+    msg.msg_type = GET_ACTIVE_LIST;
     xQueueSend(xDDS_Queue, &msg, 0);
 }
 dd_task_list get_complete_dd_task_list(void) {
     dds_msg msg;
-    msg.msg_type = COMPLETE_LIST;
+    msg.msg_type = GET_COMPLETE_LIST;
     xQueueSend(xDDS_Queue, &msg, 0);
 }
 dd_task_list get_overdue_dd_task_list(void) {
     dds_msg msg;
-    msg.msg_type = OVERDUE_LIST;
+    msg.msg_type = GET_OVERDUE_LIST;
     xQueueSend(xDDS_Queue, &msg, 0);
 }
-
-#define RELEASE 1
-#define COMPLETE 2
-#define ACTIVE_LIST 3
-#define COMPLETE_LIST 4
-#define OVERDUE_LIST 5
 
 /* --- Auxiliary Tasks --- */
 static void dd_task_generator(void *pvParameters) {
