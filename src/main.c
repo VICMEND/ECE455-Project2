@@ -9,7 +9,7 @@
 #include "../FreeRTOS_Source/include/semphr.h"
 #include "../FreeRTOS_Source/include/task.h"
 #include "../FreeRTOS_Source/include/timers.h"
-#include "list.h"
+#include "dd_list.h"
 
 
 /*-----------------------------------------------------------*/
@@ -26,23 +26,23 @@
 #define GET_OVERDUE_LIST 5
 
 
-typedef enum { PERIODIC, APERIODIC } task_type; //WHERE DOES IT SAY WE NEED THIS????
-
-typedef struct dd_task {
-    TaskHandle_t t_handle;
-    task_type type;
-    uint32_t task_id;
-    uint32_t release_time;
-    uint32_t absolute_deadline;
-    uint32_t completion_time;
-} dd_task;
-
-//there is a list.h that has pre-built list functionality we should use that instead because it apprently also has sorting. Ill try to implement it
-typedef struct dd_task_list {
-    dd_task task;
-    struct dd_task_list *next_task;
-    // ListItem_t list_item;
-} dd_task_list;
+// typedef enum { PERIODIC, APERIODIC } task_type; //WHERE DOES IT SAY WE NEED THIS????
+//
+// typedef struct dd_task {
+//     TaskHandle_t t_handle;
+//     task_type type;
+//     uint32_t task_id;
+//     uint32_t release_time;
+//     uint32_t absolute_deadline;
+//     uint32_t completion_time;
+// } dd_task;
+//
+// //there is a list.h that has pre-built list functionality we should use that instead because it apprently also has sorting. Ill try to implement it
+// typedef struct dd_task_list {
+//     dd_task task;
+//     struct dd_task_list *next_task;
+//     // ListItem_t list_item;
+// } dd_task_list;
 
 typedef struct {
     uint8_t msg_type; // 1: Release, 2: Complete, 3: Get Active list
@@ -54,11 +54,10 @@ dd_task_list *active_list_head = NULL;
 dd_task_list *completed_list_head = NULL;
 dd_task_list *overdue_list_head = NULL;
 
-void add_to_list(dd_task_list * list_head,  dd_task * new_dd_task);
-void delete_node(dd_task_list * list_head,  dd_task * done_dd_task);
-void print_list (dd_task_list* dd_task_list_head);
-void sort_list(dd_task_list* dd_task_list_head);
-void assign_task_priorities (dd_task_list* dd_task_list_head);
+// void add_to_list(dd_task_list * list_head,  dd_task * new_dd_task);
+// void delete_node(dd_task_list * list_head,  dd_task * done_dd_task);
+// void print_list (dd_task_list* dd_task_list_head);
+// void sort_list(dd_task_list* dd_task_list_head);
 
 static void dds_task(void *pvParameters);
 static void monitor_task(void *pvParameters);
