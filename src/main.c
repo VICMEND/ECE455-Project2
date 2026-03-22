@@ -1,7 +1,6 @@
 /* Standard includes. */
 #include <stdint.h>
 #include <stdio.h>
-#include "list.h"
 #include "stm32f4_discovery.h"
 /* Kernel includes. */
 #include "stm32f4xx.h"
@@ -10,7 +9,7 @@
 #include "../FreeRTOS_Source/include/semphr.h"
 #include "../FreeRTOS_Source/include/task.h"
 #include "../FreeRTOS_Source/include/timers.h"
-
+#include "list.h"
 
 
 /*-----------------------------------------------------------*/
@@ -42,6 +41,7 @@ typedef struct dd_task {
 typedef struct dd_task_list {
     dd_task task;
     struct dd_task_list *next_task;
+    // ListItem_t list_item;
 } dd_task_list;
 
 typedef struct {
@@ -54,6 +54,12 @@ dd_task_list *active_list_head = NULL;
 dd_task_list *completed_list_head = NULL;
 dd_task_list *overdue_list_head = NULL;
 
+void add_to_list(dd_task_list * list_head,  dd_task * new_dd_task);
+void delete_node(dd_task_list * list_head,  dd_task * done_dd_task);
+void print_list (dd_task_list* dd_task_list_head);
+void sort_list(dd_task_list* dd_task_list_head);
+void assign_task_priorities (dd_task_list* dd_task_list_head);
+
 static void dds_task(void *pvParameters);
 static void monitor_task(void *pvParameters);
 static void dd_task_generator(void *pvParameters);
@@ -61,9 +67,9 @@ static void user_defined_task(void *pvParameters);
 
 void release_dd_task(TaskHandle_t t_handle, task_type type, uint32_t task_id, uint32_t deadline);
 void complete_dd_task(uint32_t task_id);
-dd_task_list get_active_dd_task_list(void);
-dd_task_list get_complete_dd_task_list(void);
-dd_task_list get_overdue_dd_task_list(void);
+dd_task_list **get_active_dd_task_list(void);
+dd_task_list **get_complete_dd_task_list(void);
+dd_task_list **get_overdue_dd_task_list(void);
 
 
 /*-----------------------------------------------------------*/
@@ -173,7 +179,7 @@ static void dd_task_generator(void *pvParameters) {
     xTaskCreate(user_defined_task, "T3", 128, (void*)3, 0, &xTask3);
 
     for(;;) {
-        uint32_t now = xTaskGetTickCount();
+        uint32_t now = tickxTaskGetTickCount();
         
         // Example: Release Task 1 every 500ms [cite: 690]
         if (now % 500 == 0) {
@@ -203,3 +209,18 @@ static void monitor_task(void *pvParameters) {
     }
 }
 
+void add_to_list(dd_task_list * list_head,  dd_task * new_dd_task) {
+
+}
+void delete_node(dd_task_list * list_head,  dd_task * done_dd_task) {
+
+}
+void print_list (dd_task_list* dd_task_list_head) {
+
+}
+void sort_list(dd_task_list* dd_task_list_head) {
+
+}
+void assign_task_priorities (dd_task_list* dd_task_list_head) {
+
+}
