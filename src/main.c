@@ -114,7 +114,7 @@ static void dds_task(void *pvParameters) {
 
                 case COMPLETE:
                     rcvd_msg.task_info.completion_time = current_time;
-                    move_to_list(&completed_list_head, rcvd_msg.task_info);
+                    move_to_list(&active_list_head, &completed_list_head, rcvd_msg.task_info.task_id);
                     break;
 
                 case GET_ACTIVE_LIST:
