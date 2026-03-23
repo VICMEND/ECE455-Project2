@@ -101,9 +101,9 @@ int main(void)
 /* --- Core Scheduler Logic --- */
 static void dd_scheduler(void *pvParameters) {
 
-    dd_task_list *active_list_head = NULL;
-    dd_task_list *completed_list_head = NULL;
-    dd_task_list *overdue_list_head = NULL;
+    dd_task_list* active_list_head = NULL;
+    dd_task_list* completed_list_head = NULL;
+    dd_task_list* overdue_list_head = NULL;
     dds_msg rcvd_msg;
 
     for(;;) {
@@ -182,19 +182,30 @@ void complete_dd_task(uint32_t task_id) {
 dd_task_list* get_active_dd_task_list(void) {
     dds_msg msg;
     msg.msg_type = GET_ACTIVE_LIST;
+    dd_task_list* active_list_head = NULL;
     xQueueSend(xDDS_Queue, &msg, 0);
-
+    xQueueReceive(xactive_Queue, &active_list_head, portMAX_DELAY);
+    return active_list_head;
 }
+
 dd_task_list* get_complete_dd_task_list(void) {
     dds_msg msg;
     msg.msg_type = GET_COMPLETE_LIST;
+    dd_task_list* complete_list_head = NULL;
     xQueueSend(xDDS_Queue, &msg, 0);
+    xQueueReceive(xcomplete_Queue, &complete_list_head, portMAX_DELAY);
+    return complete_list_head;
+
+
 }
+
 dd_task_list* get_overdue_dd_task_list(void) {
     dds_msg msg;
     msg.msg_type = GET_OVERDUE_LIST;
+    dd_task_list* overdue_list_head = NULL;
     xQueueSend(xDDS_Queue, &msg, 0);
-
+    xQueueReceive(xoverdue_Queue, &overdue_list_head, portMAX_DELAY);
+    return overdue_list_head;
 
 }
 
