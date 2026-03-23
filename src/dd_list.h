@@ -33,7 +33,7 @@ typedef struct dd_task_list {
 // -----------------------------
 void add_to_list(dd_task_list **head,dd_task *new_task);
 dd_task_list* remove_node(dd_task_list **head, uint32_t task_id);
-void print_list(dd_task_list *list_head);
-void sort_list(dd_task_list *list_head);
+void print_list(dd_task_list *head);
+void sort_list(dd_task_list *head);
 
 #endif

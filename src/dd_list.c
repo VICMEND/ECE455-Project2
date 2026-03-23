@@ -60,3 +60,22 @@ dd_task_list* remove_node(dd_task_list **head, uint32_t task_id) {
     removed->next_task = NULL;
     return removed;
 }
+
+void print_list(dd_task_list *head)
+{
+    printf("---- Task List ----\n");
+
+    dd_task_list *current = head;
+
+    while (current != NULL) {
+        printf("Task ID: %u | Deadline: %u | Release: %u | Completion: %u\n",
+               current->task.task_id,
+               current->task.absolute_deadline,
+               current->task.release_time,
+               current->task.completion_time);
+
+        current = current->next_task;
+    }
+
+    printf("-------------------\n");
+}
