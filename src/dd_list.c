@@ -76,6 +76,5 @@ void print_list(dd_task_list *head)
 
         current = current->next_task;
     }
-
     printf("-------------------\n");
 }
