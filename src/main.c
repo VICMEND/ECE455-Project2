@@ -63,6 +63,10 @@ static void dd_scheduler(void *pvParameters);
 static void monitor_task(void *pvParameters);
 static void dd_task_generator(void *pvParameters);
 static void user_defined_task(void *pvParameters);
+static void task1(void *pvParameters);
+static void task2(void *pvParameters);
+static void task3(void *pvParameters);
+
 
 void release_dd_task(TaskHandle_t t_handle, task_type type, uint32_t task_id, uint32_t deadline);
 void complete_dd_task(uint32_t task_id);
@@ -244,6 +248,21 @@ static void monitor_task(void *pvParameters) {
 // void sort_list(dd_task_list* dd_task_list_head) {
 
 // }
-void assign_task_priorities (dd_task_list* dd_task_list_head) {
+void assign_task_priorities(dd_task_list *head){
+    dd_task_list *current = head;
 
+    if (current == NULL) {
+        return; // no tasks to schedule
+    }
+
+    // 1. First task in the list gets HIGH priority
+    vTaskPrioritySet(current->task.t_handle, user_task_HIGH);
+
+    // 2. All remaining tasks get LOW priority
+    current = current->next_task;
+
+    while (current != NULL) {
+        vTaskPrioritySet(current->task.t_handle, user_task_LOW);
+        current = current->next_task;
+    }
 }
