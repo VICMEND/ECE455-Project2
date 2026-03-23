@@ -59,7 +59,7 @@ QueueHandle_t xoverdue_Queue;
 // void print_list (dd_task_list* dd_task_list_head);
 // void sort_list(dd_task_list* dd_task_list_head);
 
-static void dds_task(void *pvParameters);
+static void dd_scheduler(void *pvParameters);
 static void monitor_task(void *pvParameters);
 static void dd_task_generator(void *pvParameters);
 static void user_defined_task(void *pvParameters);
@@ -82,7 +82,7 @@ int main(void)
     xoverdue_Queue = xQueueCreate(1, sizeof(dd_task_list));
 
     /* 2. Create the Manager Task (Highest Priority) [cite: 582] */
-    xTaskCreate(dds_task, "DDS", configMINIMAL_STACK_SIZE, NULL, dds_PRIORITY, NULL);
+    xTaskCreate(dd_scheduler, "DDS", configMINIMAL_STACK_SIZE, NULL, dds_PRIORITY, NULL);
 
     /* 3. Create Auxiliary Tasks [cite: 518] */
     xTaskCreate(dd_task_generator, "Gen", configMINIMAL_STACK_SIZE, NULL, generator_PRIORITY, NULL);
@@ -94,7 +94,7 @@ int main(void)
 
 
 /* --- Core Scheduler Logic --- */
-static void dds_task(void *pvParameters) {
+static void dd_scheduler(void *pvParameters) {
 
     dd_task_list *active_list_head = NULL;
     dd_task_list *completed_list_head = NULL;
@@ -202,7 +202,7 @@ static void dd_task_generator(void *pvParameters) {
     xTaskCreate(user_defined_task, "T3", 128, (void*)3, 0, &xTask3);
 
     for(;;) {
-        uint32_t now = tickxTaskGetTickCount();
+        uint32_t now = xTaskGetTickCount();
         
         // Example: Release Task 1 every 500ms [cite: 690]
         if (now % 500 == 0) {
