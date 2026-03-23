@@ -66,6 +66,7 @@ static void user_defined_task(void *pvParameters);
 static void task1(void *pvParameters);
 static void task2(void *pvParameters);
 static void task3(void *pvParameters);
+static void assign_task_priorities(dd_task_list *head);
 
 
 void release_dd_task(TaskHandle_t t_handle, task_type type, uint32_t task_id, uint32_t deadline);
@@ -140,17 +141,19 @@ static void dd_scheduler(void *pvParameters) {
 
 
             // --- EDF PRIORITY SWAP ---
-            if (active_list_head != NULL) {
-                // Earliest deadline gets HIGH priority
-                vTaskPrioritySet(active_list_head->task.t_handle, user_task_HIGH);
-                
-                // All other active tasks get LOW priority
-                dd_task_list *temp = active_list_head->next_task;
-                while(temp != NULL) {
-                    vTaskPrioritySet(temp->task.t_handle, user_task_LOW);
-                    temp = temp->next_task;
-                }
-            }
+            assign_task_priorities(active_list_head);
+
+            // if (active_list_head != NULL) {
+            //     // Earliest deadline gets HIGH priority
+            //     vTaskPrioritySet(active_list_head->task.t_handle, user_task_HIGH);
+            //
+            //     // All other active tasks get LOW priority
+            //     dd_task_list *temp = active_list_head->next_task;
+            //     while(temp != NULL) {
+            //         vTaskPrioritySet(temp->task.t_handle, user_task_LOW);
+            //         temp = temp->next_task;
+            //     }
+            // }
         }
     }
 }
