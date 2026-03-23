@@ -50,9 +50,9 @@ typedef struct {
 } dds_msg;
 
 QueueHandle_t xDDS_Queue;
-dd_task_list *active_list_head = NULL;
-dd_task_list *completed_list_head = NULL;
-dd_task_list *overdue_list_head = NULL;
+QueueHandle_t xactive_Queue;
+QueueHandle_t xcomplete_Queue;
+QueueHandle_t xoverdue_Queue;
 
 // void add_to_list(dd_task_list * list_head,  dd_task * new_dd_task);
 // void delete_node(dd_task_list * list_head,  dd_task * done_dd_task);
@@ -66,9 +66,9 @@ static void user_defined_task(void *pvParameters);
 
 void release_dd_task(TaskHandle_t t_handle, task_type type, uint32_t task_id, uint32_t deadline);
 void complete_dd_task(uint32_t task_id);
-dd_task_list **get_active_dd_task_list(void);
-dd_task_list **get_complete_dd_task_list(void);
-dd_task_list **get_overdue_dd_task_list(void);
+dd_task_list *get_active_dd_task_list(void);
+dd_task_list *get_complete_dd_task_list(void);
+dd_task_list *get_overdue_dd_task_list(void);
 
 
 /*-----------------------------------------------------------*/
@@ -77,6 +77,9 @@ int main(void)
 {
 	/* 1. Create the DDS Queue for inter-task communication [cite: 613, 725] */
     xDDS_Queue = xQueueCreate(10, sizeof(dds_msg));
+    xactive_Queue = xQueueCreate(1, sizeof(dd_task_list));
+    xcomplete_Queue = xQueueCreate(1, sizeof(dd_task_list));
+    xoverdue_Queue = xQueueCreate(1, sizeof(dd_task_list));
 
     /* 2. Create the Manager Task (Highest Priority) [cite: 582] */
     xTaskCreate(dds_task, "DDS", configMINIMAL_STACK_SIZE, NULL, dds_PRIORITY, NULL);
@@ -92,27 +95,45 @@ int main(void)
 
 /* --- Core Scheduler Logic --- */
 static void dds_task(void *pvParameters) {
+
+    dd_task_list *active_list_head = NULL;
+    dd_task_list *completed_list_head = NULL;
+    dd_task_list *overdue_list_head = NULL;
     dds_msg rcvd_msg;
+
     for(;;) {
         if(xQueueReceive(xDDS_Queue, &rcvd_msg, portMAX_DELAY)) {
             uint32_t current_time = xTaskGetTickCount();
 
-            if(rcvd_msg.msg_type == RELEASE) { // RELEASE
-                rcvd_msg.task_info.release_time = current_time;
-                add_to_active_list(&active_list_head, rcvd_msg.task_info);
-            } 
-            else if(rcvd_msg.msg_type == COMPLETE) { // COMPLETE
-                // 1. Find in Active List, move to Completed
-                // 2. Remove from Active List (Logic omitted for brevity)
-                rcvd_msg.task_info.completion_time = current_time;
-                move_to_list(&completed_list_head, rcvd_msg.task_info);
-            } else if(rcvd_msg.msg_type == GET_ACTIVE_LIST) {
+            switch (rcvd_msg.msg_type)
+            {
+                case RELEASE:
+                    rcvd_msg.task_info.release_time = current_time;
+                    add_to_list(&active_list_head, &rcvd_msg.task_info);
+                    break;
 
-            } else if(rcvd_msg.msg_type == GET_COMPLETE_LIST) {
+                case COMPLETE:
+                    rcvd_msg.task_info.completion_time = current_time;
+                    move_to_list(&completed_list_head, rcvd_msg.task_info);
+                    break;
 
-            } else if(rcvd_msg.msg_type == GET_OVERDUE_LIST) {
+                case GET_ACTIVE_LIST:
+                    // xQueueSend(xactive_Queue, &active_list_head, 0);
+                    break;
 
+                case GET_COMPLETE_LIST:
+                    // xQueueSend(xcomplete_Queue, &complete_list_head, 0);
+                    break;
+
+                case GET_OVERDUE_LIST:
+                    // xQueueSend(xoverdue_Queue, &overdue_list_head, 0);
+                    break;
+
+                default:
+                    // Unknown message type
+                    break;
             }
+
 
             // --- EDF PRIORITY SWAP ---
             if (active_list_head != NULL) {
@@ -137,9 +158,9 @@ void release_dd_task(TaskHandle_t t_handle, task_type type, uint32_t task_id, ui
     msg.task_info.t_handle = t_handle;
     msg.task_info.type = type;
     msg.task_info.task_id = task_id;
-    msg.task_info.absolute_deadline = deadline;
     msg.task_info.release_time = xTaskGetTickCount();
-    
+    msg.task_info.absolute_deadline = deadline + msg.task_info.release_time;
+
     xQueueSend(xDDS_Queue, &msg, 0);
 }
 
@@ -151,20 +172,23 @@ void complete_dd_task(uint32_t task_id) {
     xQueueSend(xDDS_Queue, &msg, 0);
 }
 
-dd_task_list get_active_dd_task_list(void) {
+dd_task_list* get_active_dd_task_list(void) {
     dds_msg msg;
     msg.msg_type = GET_ACTIVE_LIST;
     xQueueSend(xDDS_Queue, &msg, 0);
+
 }
-dd_task_list get_complete_dd_task_list(void) {
+dd_task_list* get_complete_dd_task_list(void) {
     dds_msg msg;
     msg.msg_type = GET_COMPLETE_LIST;
     xQueueSend(xDDS_Queue, &msg, 0);
 }
-dd_task_list get_overdue_dd_task_list(void) {
+dd_task_list* get_overdue_dd_task_list(void) {
     dds_msg msg;
     msg.msg_type = GET_OVERDUE_LIST;
     xQueueSend(xDDS_Queue, &msg, 0);
+
+
 }
 
 /* --- Auxiliary Tasks --- */
@@ -207,19 +231,19 @@ static void monitor_task(void *pvParameters) {
         vTaskDelay(pdMS_TO_TICKS(1500)); // Report every hyper-period [cite: 687]
     }
 }
+//
+// void add_to_list(dd_task_list * list_head,  dd_task * new_dd_task) {
+//
+// }
+// void delete_node(dd_task_list * list_head,  dd_task * done_dd_task) {
+//
+// }
+// void print_list (dd_task_list* dd_task_list_head) {
+//
+// }
+// void sort_list(dd_task_list* dd_task_list_head) {
 
-void add_to_list(dd_task_list * list_head,  dd_task * new_dd_task) {
-
-}
-void delete_node(dd_task_list * list_head,  dd_task * done_dd_task) {
-
-}
-void print_list (dd_task_list* dd_task_list_head) {
-
-}
-void sort_list(dd_task_list* dd_task_list_head) {
-
-}
+// }
 void assign_task_priorities (dd_task_list* dd_task_list_head) {
 
 }
