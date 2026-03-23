@@ -78,3 +78,14 @@ void print_list(dd_task_list *head)
     }
     printf("-------------------\n");
 }
+
+void move_to_list(dd_task_list **origin_list, dd_task_list **destination_list, uint32_t task_id) {
+    dd_task_list* node = remove_node(origin_list, task_id);
+    if (node == NULL) {
+        return;
+    }
+    add_to_list(destination_list, &node->task);
+    vPortFree(node);
+}
+
+
