@@ -88,4 +88,13 @@ void move_to_list(dd_task_list **origin_list, dd_task_list **destination_list, u
     vPortFree(node);
 }
 
-
+int find(dd_task_list *head, uint32_t task_id){
+	 dd_task_list *current = head;
+	    while (current != NULL) {
+	    	if(current->task->task_id == task_id){
+	    		return 1;
+	    	}
+	        current = current->next_task;
+	    }
+	    return 0;
+}
