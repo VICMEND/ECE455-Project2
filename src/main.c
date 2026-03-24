@@ -114,6 +114,9 @@ static void dd_scheduler(void *pvParameters) {
             {
                 case RELEASE:
                     rcvd_msg.task_info.release_time = current_time;
+                    if(find(active_list_head,&rcvd_msg.task_info.task_id)){
+                    	move_to_list(&active_list_head, &overdue_list_head, rcvd_msg.task_info.task_id);
+                    }
                     add_to_list(&active_list_head, &rcvd_msg.task_info);
                     break;
 
