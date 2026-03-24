@@ -6,8 +6,13 @@
 #define DD_LIST_H
 
 #include <stdint.h>
-#include "FreeRTOS.h"
-#include "task.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include "../FreeRTOS_Source/include/FreeRTOS.h"
+#include "../FreeRTOS_Source/include/queue.h"
+#include "../FreeRTOS_Source/include/semphr.h"
+#include "../FreeRTOS_Source/include/task.h"
+#include "../FreeRTOS_Source/include/timers.h"
 
 // -----------------------------
 // Structs from your project

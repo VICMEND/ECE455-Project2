@@ -82,9 +82,9 @@ int main(void)
 {
 	/* 1. Create the DDS Queue for inter-task communication [cite: 613, 725] */
     xDDS_Queue = xQueueCreate(10, sizeof(dds_msg));
-    xactive_Queue = xQueueCreate(1, sizeof(dd_task_list));
-    xcomplete_Queue = xQueueCreate(1, sizeof(dd_task_list));
-    xoverdue_Queue = xQueueCreate(1, sizeof(dd_task_list));
+    xactive_Queue = xQueueCreate(1, sizeof(dd_task_list*));
+    xcomplete_Queue = xQueueCreate(1, sizeof(dd_task_list*));
+    xoverdue_Queue = xQueueCreate(1, sizeof(dd_task_list*));
 
     /* 2. Create the Manager Task (Highest Priority) [cite: 582] */
     xTaskCreate(dd_scheduler, "DDS", configMINIMAL_STACK_SIZE, NULL, dds_PRIORITY, NULL);
@@ -195,8 +195,6 @@ dd_task_list* get_complete_dd_task_list(void) {
     xQueueSend(xDDS_Queue, &msg, 0);
     xQueueReceive(xcomplete_Queue, &complete_list_head, portMAX_DELAY);
     return complete_list_head;
-
-
 }
 
 dd_task_list* get_overdue_dd_task_list(void) {
@@ -206,7 +204,6 @@ dd_task_list* get_overdue_dd_task_list(void) {
     xQueueSend(xDDS_Queue, &msg, 0);
     xQueueReceive(xoverdue_Queue, &overdue_list_head, portMAX_DELAY);
     return overdue_list_head;
-
 }
 
 /* --- Auxiliary Tasks --- */
