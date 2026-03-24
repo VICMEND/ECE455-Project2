@@ -13,7 +13,7 @@
 
 
 /*-----------------------------------------------------------*/
-#define dds_PRIORITY          (configMAX_PRIORITIES - 1) //WHY NOT JUST 1, 2, 3, 4, 5
+#define dds_PRIORITY          (configMAX_PRIORITIES - 1) 
 #define monitor_PRIORITY      (configMAX_PRIORITIES - 2)
 #define generator_PRIORITY    (configMAX_PRIORITIES - 3)
 #define user_task_LOW         (1) 
@@ -25,8 +25,37 @@
 #define GET_COMPLETE_LIST 4
 #define GET_OVERDUE_LIST 5
 
+/* **************************************************** */
 
-// typedef enum { PERIODIC, APERIODIC } task_type; //WHERE DOES IT SAY WE NEED THIS????
+#define T1_period 500
+#define T2_period 500
+#define T3_period 750
+
+#define T1_exTime 95
+#define T2_exTime 150
+#define T3_exTime 250
+
+/* **************************************************** */
+
+// #define T1_period 250
+// #define T2_period 500
+// #define T3_period 750
+
+// #define T1_exTime 95
+// #define T2_exTime 150
+// #define T3_exTime 250
+
+/* **************************************************** */
+
+// #define T1_period 500
+// #define T2_period 500
+// #define T3_period 500
+
+// #define T1_exTime 100
+// #define T2_exTime 200
+// #define T3_exTime 200
+
+/* **************************************************** */
 //
 // typedef struct dd_task {
 //     TaskHandle_t t_handle;
@@ -45,7 +74,7 @@
 // } dd_task_list;
 
 typedef struct {
-    uint8_t msg_type; // 1: Release, 2: Complete, 3: Get Active list
+    uint8_t msg_type; // Release, Complete, Get Active list
     dd_task task_info;
 } dds_msg;
 
@@ -53,11 +82,6 @@ QueueHandle_t xDDS_Queue;
 QueueHandle_t xactive_Queue;
 QueueHandle_t xcomplete_Queue;
 QueueHandle_t xoverdue_Queue;
-
-// void add_to_list(dd_task_list * list_head,  dd_task * new_dd_task);
-// void delete_node(dd_task_list * list_head,  dd_task * done_dd_task);
-// void print_list (dd_task_list* dd_task_list_head);
-// void sort_list(dd_task_list* dd_task_list_head);
 
 static void dd_scheduler(void *pvParameters);
 static void monitor_task(void *pvParameters);
@@ -113,11 +137,11 @@ static void dd_scheduler(void *pvParameters) {
             switch (rcvd_msg.msg_type)
             {
                 case RELEASE:
-                    rcvd_msg.task_info.release_time = current_time;
                     if(find(active_list_head,&rcvd_msg.task_info.task_id)){
                     	move_to_list(&active_list_head, &overdue_list_head, rcvd_msg.task_info.task_id);
                     }
                     add_to_list(&active_list_head, &rcvd_msg.task_info);
+                    vTaskResume(rcvd_msg.task_info.t_handle);
                     break;
 
                 case COMPLETE:
@@ -162,14 +186,14 @@ static void dd_scheduler(void *pvParameters) {
 }
 
 /* --- Interface Implementations --- */
-void release_dd_task(TaskHandle_t t_handle, task_type type, uint32_t task_id, uint32_t deadline) {
+void release_dd_task(TaskHandle_t t_handle, task_type type, uint32_t task_id, uint32_t release, uint32_t deadline) {
     dds_msg msg;
     msg.msg_type = RELEASE;
     msg.task_info.t_handle = t_handle;
     msg.task_info.type = type;
     msg.task_info.task_id = task_id;
-    msg.task_info.release_time = xTaskGetTickCount();
-    msg.task_info.absolute_deadline = deadline + msg.task_info.release_time;
+    msg.task_info.release_time = release;
+    msg.task_info.absolute_deadline = release + deadline;
 
     xQueueSend(xDDS_Queue, &msg, 0);
 }
@@ -213,8 +237,7 @@ dd_task_list* get_overdue_dd_task_list(void) {
 static void dd_task_generator(void *pvParameters) {
     // Handles for the three worker tasks
     TaskHandle_t xTask1, xTask2, xTask3;
-    
-    // Create the tasks once; they start suspended or at priority 0 [cite: 665]
+
     xTaskCreate(user_defined_task, "T1", 128, (void*)1, 0, &xTask1);
     xTaskCreate(user_defined_task, "T2", 128, (void*)2, 0, &xTask2);
     xTaskCreate(user_defined_task, "T3", 128, (void*)3, 0, &xTask3);
@@ -222,11 +245,17 @@ static void dd_task_generator(void *pvParameters) {
     for(;;) {
         uint32_t now = xTaskGetTickCount();
         
-        // Example: Release Task 1 every 500ms [cite: 690]
-        if (now % 500 == 0) {
-            release_dd_task(xTask1, PERIODIC, 1, now + 500); 
+        if (now % T1_period == 0) {
+            release_dd_task(xTask1, PERIODIC, 1, now, T1_period); 
         }
-        // Add logic for Task 2 (500ms) and Task 3 (750ms) here [cite: 690]
+
+        if (now % T2_period == 0) {
+            release_dd_task(xTask2, PERIODIC, 2, now, T2_period); 
+        }
+
+        if (now % T3_period == 0) {
+            release_dd_task(xTask3, PERIODIC, 3, now, T3_period); 
+        }
         
         vTaskDelay(1); // Check every tick
     }
@@ -234,34 +263,59 @@ static void dd_task_generator(void *pvParameters) {
 
 static void user_defined_task(void *pvParameters) {
     uint32_t my_id = (uint32_t)pvParameters;
+
+    uint32_t execution_time_ms;
+
+    // Determine execution time based on task ID from Test Bench #1 
+    if (my_id == 1) execution_time_ms = T1_exTime;
+    else if (my_id == 2) execution_time_ms = T2_exTime;
+    else if (my_id == 3) execution_time_ms = T3_exTime;
+    else execution_time_ms = 50; // Default
+
     for(;;) {
-        // 1. Wait for a signal to start (e.g., a semaphore)
-        // 2. Do "work" (empty loop) [cite: 636]
-        // 3. Call complete_dd_task [cite: 638]
+
+        uint32_t start_tick = xTaskGetTickCount();
+        while ((xTaskGetTickCount() - start_tick) < pdMS_TO_TICKS(execution_time_ms)) {
+            // Busy wait to simulate execution [cite: 636]
+        }
+
         complete_dd_task(my_id);
+        
         vTaskSuspend(NULL); // Wait for next release
     }
 }
 
 static void monitor_task(void *pvParameters) {
     for(;;) {
-        // Request lists from DDS and print counts to console [cite: 670, 675]
-        vTaskDelay(pdMS_TO_TICKS(1500)); // Report every hyper-period [cite: 687]
+        // The Monitor Task must execute even if there are active tasks
+        // Report every hyper-period (1500ms for Test Bench #1)
+        vTaskDelay(pdMS_TO_TICKS(1500)); 
+
+        // 1. Get the lists using interface functions
+        dd_task_list *active = get_active_dd_task_list();
+        dd_task_list *complete = get_complete_dd_task_list();
+        dd_task_list *overdue = get_overdue_dd_task_list();
+
+        // 2. Count the nodes in each list
+        uint32_t active_count = 0, complete_count = 0, overdue_count = 0;
+        
+        dd_task_list *curr = active;
+        while(curr != NULL) { active_count++; curr = curr->next_task; }
+        
+        curr = complete;
+        while(curr != NULL) { complete_count++; curr = curr->next_task; }
+        
+        curr = overdue;
+        while(curr != NULL) { overdue_count++; curr = curr->next_task; }
+
+        // 3. Report system information to console
+        printf("\n--- Monitor Report (%u ms) ---\n", (unsigned int)xTaskGetTickCount());
+        printf("Active Tasks: %u\n", (unsigned int)active_count);
+        printf("Completed Tasks: %u\n", (unsigned int)complete_count);
+        printf("Overdue Tasks: %u\n", (unsigned int)overdue_count);
     }
 }
-//
-// void add_to_list(dd_task_list * list_head,  dd_task * new_dd_task) {
-//
-// }
-// void delete_node(dd_task_list * list_head,  dd_task * done_dd_task) {
-//
-// }
-// void print_list (dd_task_list* dd_task_list_head) {
-//
-// }
-// void sort_list(dd_task_list* dd_task_list_head) {
 
-// }
 void assign_task_priorities(dd_task_list *head){
     dd_task_list *current = head;
 

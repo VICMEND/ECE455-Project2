@@ -17,7 +17,7 @@
 // -----------------------------
 // Structs from your project
 // -----------------------------
-typedef enum { PERIODIC, APERIODIC } task_type; //WHERE DOES IT SAY WE NEED THIS????
+typedef enum { PERIODIC, APERIODIC } task_type;
 
 typedef struct dd_task {
     TaskHandle_t t_handle;
