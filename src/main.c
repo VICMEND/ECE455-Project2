@@ -102,7 +102,6 @@ int main(void)
 {
     xDDS_Queue = xQueueCreate(10, sizeof(dds_msg));
     xGen_Queue = xQueueCreate(10, sizeof(uint32_t));
-    xUser_Queue = xQueueCreate(10, sizeof(uint32_t));
     xactive_Queue = xQueueCreate(1, sizeof(dd_task_list*));
     xcomplete_Queue = xQueueCreate(1, sizeof(dd_task_list*));
     xoverdue_Queue = xQueueCreate(1, sizeof(dd_task_list*));
@@ -111,13 +110,17 @@ int main(void)
     T2Timer = xTimerCreate("T2_Timer", pdMS_TO_TICKS(T2_period), pdTRUE, (void*)2, ReleaseCallback2);
     T3Timer = xTimerCreate("T3_Timer", pdMS_TO_TICKS(T3_period), pdTRUE, (void*)3, ReleaseCallback3);
 
-    xTaskCreate(user_defined_task, "T1", 128, (void*)1, 0, &xTask1);
-    xTaskCreate(user_defined_task, "T2", 128, (void*)2, 0, &xTask2);
-    xTaskCreate(user_defined_task, "T3", 128, (void*)3, 0, &xTask3);
+//    xTaskCreate(user_defined_task, "T1", 128, (void*)1, 0, &xTask1);
+//    xTaskCreate(user_defined_task, "T2", 128, (void*)2, 0, &xTask2);
+//    xTaskCreate(user_defined_task, "T3", 128, (void*)3, 0, &xTask3);
 
     xTaskCreate(dd_scheduler, "DDS", configMINIMAL_STACK_SIZE, NULL, dds_PRIORITY, NULL);
     xTaskCreate(dd_task_generator, "Generator", configMINIMAL_STACK_SIZE, NULL, generator_PRIORITY, NULL);
     xTaskCreate(monitor_task, "Monitor", 512 , NULL, monitor_PRIORITY, NULL);
+
+    xTimerStart(T1Timer, 0);
+    xTimerStart(T2Timer, 0);
+    xTimerStart(T3Timer, 0);
 
     vTaskStartScheduler();
    for(;;);
@@ -171,18 +174,6 @@ static void dd_scheduler(void *pvParameters) {
 
             // --- EDF PRIORITY SWAP ---
             assign_task_priorities(active_list_head);
-
-            // if (active_list_head != NULL) {
-            //     // Earliest deadline gets HIGH priority
-            //     vTaskPrioritySet(active_list_head->task.t_handle, user_task_HIGH);
-            //
-            //     // All other active tasks get LOW priority
-            //     dd_task_list *temp = active_list_head->next_task;
-            //     while(temp != NULL) {
-            //         vTaskPrioritySet(temp->task.t_handle, user_task_LOW);
-            //         temp = temp->next_task;
-            //     }
-            // }
         }
     }
 }
@@ -239,41 +230,43 @@ dd_task_list* get_overdue_dd_task_list(void) {
 static void dd_task_generator(void *pvParameters) {
 	uint32_t now = xTaskGetTickCount();
 	int id;
-	xQueueReceive(xGen_Queue, &id, portMAX_DELAY);
-	switch(id){
-		case 1:
+	for(;;){
+		xQueueReceive(xGen_Queue, &id, portMAX_DELAY);
+		switch(id){
+			case 1:
 
-			//xTaskCreate(user_defined_task, "T1", 128, (void*)1, 0, &xTask1);
+				xTaskCreate(user_defined_task, "T1", 128, (void*)1, 0, &xTask1);
 
-			vTaskSuspend(xTask1);
+				vTaskSuspend(xTask1);
 
-			release_dd_task(xTask1, PERIODIC, 1, now, T1_period);
+				release_dd_task(xTask1, PERIODIC, 1, now, T1_period);
 
-			break;
+				break;
 
-		case 2:
+			case 2:
 
-			//xTaskCreate(user_defined_task, "T2", 128, (void*)2, 0, &xTask2);
+				xTaskCreate(user_defined_task, "T2", 128, (void*)2, 0, &xTask2);
 
-			vTaskSuspend(xTask2);
+				vTaskSuspend(xTask2);
 
-			release_dd_task(xTask2, PERIODIC, 2, now, T2_period);
+				release_dd_task(xTask2, PERIODIC, 2, now, T2_period);
 
-			break;
+				break;
 
-		case 3:
+			case 3:
 
-			//xTaskCreate(user_defined_task, "T3", 128, (void*)3, 0, &xTask3);
+				xTaskCreate(user_defined_task, "T3", 128, (void*)3, 0, &xTask3);
 
-			vTaskSuspend(xTask3);
+				vTaskSuspend(xTask3);
 
-			release_dd_task(xTask3, PERIODIC, 3, now, T3_period);
+				release_dd_task(xTask3, PERIODIC, 3, now, T3_period);
 
-			break;
+				break;
 
+		}
+
+		vTaskSuspend(NULL);
 	}
-
-    vTaskSuspend(NULL);
 }
 
 void ReleaseCallback1(TimerHandle_t xTimer) {
@@ -341,9 +334,9 @@ static void monitor_task(void *pvParameters) {
 
         // 3. Report system information to console
         printf("\n--- Monitor Report (%u ms) ---\n", (unsigned int)xTaskGetTickCount());
-        printf("Active Tasks: %u\n", (unsigned int)active_count);
-        printf("Completed Tasks: %u\n", (unsigned int)complete_count);
-        printf("Overdue Tasks: %u\n", (unsigned int)overdue_count);
+//        printf("Active Tasks: %u\n", (unsigned int)active_count);
+//        printf("Completed Tasks: %u\n", (unsigned int)complete_count);
+//        printf("Overdue Tasks: %u\n", (unsigned int)overdue_count);
     }
 }
 
