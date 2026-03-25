@@ -35,6 +35,8 @@
 #define T2_exTime 150
 #define T3_exTime 250
 
+#define HyperPeriod 1500
+
 /* **************************************************** */
 
 // #define T1_period 250
@@ -45,6 +47,8 @@
 // #define T2_exTime 150
 // #define T3_exTime 250
 
+//#define HyperPeriod 1500
+
 /* **************************************************** */
 
 // #define T1_period 500
@@ -54,6 +58,8 @@
 // #define T1_exTime 100
 // #define T2_exTime 200
 // #define T3_exTime 200
+
+//#define HyperPeriod 500
 
 /* **************************************************** */
 
@@ -77,7 +83,7 @@ static void monitor_task(void *pvParameters);
 //static void dd_task_generator3(void *pvParameters);
 static void user_defined_task(void *pvParameters);
 
-TaskHandle_t xTask1, xTask2, xTask3;
+//TaskHandle_t xTask1, xTask2, xTask3;
 
 TimerHandle_t T1Timer;
 TimerHandle_t T2Timer;
@@ -104,10 +110,17 @@ dd_task_list *get_overdue_dd_task_list(void);
 int main(void)
 {
     xDDS_Queue = xQueueCreate(10, sizeof(dds_msg));
-    xGen_Queue = xQueueCreate(10, sizeof(uint32_t));
+    //xGen_Queue = xQueueCreate(10, sizeof(uint32_t));
     xactive_Queue = xQueueCreate(1, sizeof(dd_task_list*));
     xcomplete_Queue = xQueueCreate(1, sizeof(dd_task_list*));
     xoverdue_Queue = xQueueCreate(1, sizeof(dd_task_list*));
+
+//    xTaskCreate(user_defined_task, "T1", configMINIMAL_STACK_SIZE*2, (void*)1, 0, &xTask1);
+//    vTaskSuspend(xTask1);
+//    xTaskCreate(user_defined_task, "T2", configMINIMAL_STACK_SIZE*2, (void*)2, 0, &xTask2);
+//    vTaskSuspend(xTask2);
+//    xTaskCreate(user_defined_task, "T3", configMINIMAL_STACK_SIZE*2, (void*)3, 0, &xTask3);
+//    vTaskSuspend(xTask3);
 
     T1Timer = xTimerCreate("T1_Timer", pdMS_TO_TICKS(T1_period), pdTRUE, (void*)1, dd_task_generator);
     T2Timer = xTimerCreate("T2_Timer", pdMS_TO_TICKS(T2_period), pdTRUE, (void*)2, dd_task_generator);
@@ -120,16 +133,12 @@ int main(void)
 //    xTaskCreate(user_defined_task, "T2", 128, (void*)2, 0, &xTask2);
 //    xTaskCreate(user_defined_task, "T3", 128, (void*)3, 0, &xTask3);
 
-    printf("Release!!!!");
+    printf("Main\n");
     xTaskCreate(dd_scheduler, "DDS", configMINIMAL_STACK_SIZE*2, NULL, dds_PRIORITY, NULL);
 //    xTaskCreate(dd_task_generator1, "Generator1", configMINIMAL_STACK_SIZE, NULL, generator_PRIORITY, NULL);
 //    xTaskCreate(dd_task_generator2, "Generator2", configMINIMAL_STACK_SIZE, NULL, generator_PRIORITY, NULL);
 //    xTaskCreate(dd_task_generator3, "Generator3", configMINIMAL_STACK_SIZE, NULL, generator_PRIORITY, NULL);
-    xTaskCreate(monitor_task, "Monitor", configMINIMAL_STACK_SIZE*2, NULL, monitor_PRIORITY, NULL);
-
-    dd_task_generator(T1Timer);
-    dd_task_generator(T2Timer);
-    dd_task_generator(T3Timer);
+    xTaskCreate(monitor_task, "Monitor", configMINIMAL_STACK_SIZE, NULL, monitor_PRIORITY, NULL);
 
     vTaskStartScheduler();
    for(;;);
@@ -138,12 +147,27 @@ int main(void)
 
 /* --- Core Scheduler Logic --- */
 static void dd_scheduler(void *pvParameters) {
-	//printf("1");
+	//printf("dd_scheduler\n");
+
+//	dd_task_generator(T1Timer);
+//	printf("After gen\n");
+//	xTaskCreate(user_defined_task, "T1", configMINIMAL_STACK_SIZE*2, (void*)1, 0, &xTask1);
+//	printf("after create\n");
+//	vTaskSuspend(xTask1);
+//	printf("after suspend\n");
+//
+//	xTaskCreate(user_defined_task, "T2", configMINIMAL_STACK_SIZE*2, (void*)2, 0, &xTask2);
+//	vTaskSuspend(xTask2);
+//	dd_task_generator(T2Timer);
+//
+//	xTaskCreate(user_defined_task, "T3", configMINIMAL_STACK_SIZE*2, (void*)3, 0, &xTask3);
+//	vTaskSuspend(xTask3);
+//	dd_task_generator(T3Timer);
+
     dd_task_list* active_list_head = NULL;
     dd_task_list* completed_list_head = NULL;
     dd_task_list* overdue_list_head = NULL;
     dds_msg rcvd_msg;
-
 
     for(;;) {
         if(xQueueReceive(xDDS_Queue, &rcvd_msg, portMAX_DELAY)) {
@@ -152,23 +176,24 @@ static void dd_scheduler(void *pvParameters) {
             switch (rcvd_msg.msg_type)
             {
                 case RELEASE:
-                	//printf("Release!!!!");
+                	//printf("Release\n");
                     if(find(active_list_head, rcvd_msg.task_info.task_id)){
-                    	//printf("in if!!!!");
+                    	//printf("in release if");
                     	move_to_list(&active_list_head, &overdue_list_head, rcvd_msg.task_info.task_id);
                     }
                     add_to_list(&active_list_head, &rcvd_msg.task_info);
-                    //printf("2");
+                    //printf("release after add");
                     vTaskResume(rcvd_msg.task_info.t_handle);
-                    //printf("Done release!!!!");
+                    printf("Task: %d, Release: %d, Complete %d, Deadline %d\n", rcvd_msg.task_info.task_id , rcvd_msg.task_info.release_time, rcvd_msg.task_info.completion_time, rcvd_msg.task_info.absolute_deadline);
                     break;
 
                 case COMPLETE:
-                	//printf("Complete!!!!");
                     rcvd_msg.task_info.completion_time = current_time;
                     //printf("current time!!!!");
                     move_to_list(&active_list_head, &completed_list_head, rcvd_msg.task_info.task_id);
                     //printf("SOMETHING7!!!!");
+                    //printf("Done Complete");
+                    printf("Task: %d, Release: %d, Complete %d, Deadline %d\n", rcvd_msg.task_info.task_id , rcvd_msg.task_info.release_time, rcvd_msg.task_info.completion_time, rcvd_msg.task_info.absolute_deadline);
                     break;
 
                 case GET_ACTIVE_LIST:
@@ -187,7 +212,7 @@ static void dd_scheduler(void *pvParameters) {
                     // Unknown message type
                     break;
             }
-            //printf("end switch!!!!");
+            //printf("end switch\n");
 
 
             // --- EDF PRIORITY SWAP ---
@@ -206,7 +231,11 @@ void release_dd_task(TaskHandle_t t_handle, task_type type, uint32_t task_id, ui
     msg.task_info.release_time = release;
     msg.task_info.absolute_deadline = release + deadline;
 
+    //printf("In Release\n");
+
     xQueueSend(xDDS_Queue, &msg, 0);
+
+    //printf("Message Sent\n");
 }
 
 void complete_dd_task(uint32_t task_id) {
@@ -246,26 +275,27 @@ dd_task_list* get_overdue_dd_task_list(void) {
 
 static void dd_task_generator(TimerHandle_t xTimer) {
 	uint32_t timerID = pvTimerGetTimerID(xTimer);
+	//printf("dd gen\n");
 	uint32_t now = xTaskGetTickCount();
 	if(timerID == 1){
-		if (now < 20){
-			xTaskCreate(user_defined_task, "T1", configMINIMAL_STACK_SIZE*2, (void*)1, 0, &xTask1);
-			vTaskSuspend(xTask1);
-		}
+		TaskHandle_t xTask1;
+		xTaskCreate(user_defined_task, "T1", configMINIMAL_STACK_SIZE*2, (void*)1, 0, &xTask1);
+		vTaskSuspend(xTask1);
+		//printf("Task Suspended\n");
 		release_dd_task(xTask1, PERIODIC, 1, now, T1_period);
+		//printf("Task released\n");
 	}else if(timerID == 2){
-		if (now < 20){
-			xTaskCreate(user_defined_task, "T2", configMINIMAL_STACK_SIZE*2, (void*)2, 0, &xTask2);
-			vTaskSuspend(xTask2);
-		}
+		TaskHandle_t xTask2;
+		xTaskCreate(user_defined_task, "T2", configMINIMAL_STACK_SIZE*2, (void*)2, 0, &xTask2);
+		vTaskSuspend(xTask2);
 		release_dd_task(xTask2, PERIODIC, 2, now, T2_period);
 	}else if(timerID == 3){
-		if (now < 20){
-			xTaskCreate(user_defined_task, "T3", configMINIMAL_STACK_SIZE*2, (void*)3, 0, &xTask3);
-			vTaskSuspend(xTask3);
-		}
+		TaskHandle_t xTask3;
+		xTaskCreate(user_defined_task, "T3", configMINIMAL_STACK_SIZE*2, (void*)3, 0, &xTask3);
+		vTaskSuspend(xTask3);
 		release_dd_task(xTask3, PERIODIC, 3, now, T3_period);
 	}
+	//printf("End Gen\n");
 }
 
 //static void dd_task_generator(void *pvParameters) {
@@ -380,7 +410,7 @@ static void user_defined_task(void *pvParameters) {
 	else if (my_id == 2) execution_time_ms = T2_exTime;
 	else if (my_id == 3) execution_time_ms = T3_exTime;
 
-    //printf("*");
+    printf("*");
 
     for(;;) {
 
@@ -391,23 +421,19 @@ static void user_defined_task(void *pvParameters) {
 
         complete_dd_task(my_id);
 
-        vTaskSuspend(NULL);
-        //vTaskDelete(NULL);
+        //vTaskSuspend(NULL);
+        vTaskDelete(NULL);
     }
 }
 
 static void monitor_task(void *pvParameters) {
     for(;;) {
-        // The Monitor Task must execute even if there are active tasks
-        // Report every hyper-period (1500ms for Test Bench #1)
-        vTaskDelay(pdMS_TO_TICKS(1500));
+        vTaskDelay(pdMS_TO_TICKS(HyperPeriod));
 
-        // 1. Get the lists using interface functions
         dd_task_list *active = get_active_dd_task_list();
         dd_task_list *complete = get_complete_dd_task_list();
         dd_task_list *overdue = get_overdue_dd_task_list();
 
-        // 2. Count the nodes in each list
         uint32_t active_count = 0, complete_count = 0, overdue_count = 0;
 
         dd_task_list *curr = active;
@@ -419,11 +445,10 @@ static void monitor_task(void *pvParameters) {
         curr = overdue;
         while(curr != NULL) { overdue_count++; curr = curr->next_task; }
 
-        // 3. Report system information to console
-//        printf("\n--- Monitor Report (%u ms) ---\n", (unsigned int)xTaskGetTickCount());
-//        printf("Active Tasks: %u\n", (unsigned int)active_count);
-//        printf("Completed Tasks: %u\n", (unsigned int)complete_count);
-//        printf("Overdue Tasks: %u\n", (unsigned int)overdue_count);
+        printf("\n--- Monitor Report (%u ms) ---\n", (unsigned int)xTaskGetTickCount());
+        printf("Active Tasks: %u\n", (unsigned int)active_count);
+        printf("Completed Tasks: %u\n", (unsigned int)complete_count);
+        printf("Overdue Tasks: %u\n", (unsigned int)overdue_count);
     }
 }
 
