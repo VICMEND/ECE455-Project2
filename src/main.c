@@ -125,7 +125,7 @@ int main(void)
 //    xTaskCreate(dd_task_generator1, "Generator1", configMINIMAL_STACK_SIZE, NULL, generator_PRIORITY, NULL);
 //    xTaskCreate(dd_task_generator2, "Generator2", configMINIMAL_STACK_SIZE, NULL, generator_PRIORITY, NULL);
 //    xTaskCreate(dd_task_generator3, "Generator3", configMINIMAL_STACK_SIZE, NULL, generator_PRIORITY, NULL);
-    xTaskCreate(monitor_task, "Monitor", configMINIMAL_STACK_SIZE, NULL, monitor_PRIORITY, NULL);
+    xTaskCreate(monitor_task, "Monitor", configMINIMAL_STACK_SIZE*2, NULL, monitor_PRIORITY, NULL);
 
     dd_task_generator(T1Timer);
     dd_task_generator(T2Timer);
@@ -248,16 +248,22 @@ static void dd_task_generator(TimerHandle_t xTimer) {
 	uint32_t timerID = pvTimerGetTimerID(xTimer);
 	uint32_t now = xTaskGetTickCount();
 	if(timerID == 1){
-		xTaskCreate(user_defined_task, "T1", 128, (void*)1, 0, &xTask1);
-		vTaskSuspend(xTask1);
+		if (now < 20){
+			xTaskCreate(user_defined_task, "T1", configMINIMAL_STACK_SIZE*2, (void*)1, 0, &xTask1);
+			vTaskSuspend(xTask1);
+		}
 		release_dd_task(xTask1, PERIODIC, 1, now, T1_period);
 	}else if(timerID == 2){
-		xTaskCreate(user_defined_task, "T2", 128, (void*)2, 0, &xTask2);
-		vTaskSuspend(xTask2);
+		if (now < 20){
+			xTaskCreate(user_defined_task, "T2", configMINIMAL_STACK_SIZE*2, (void*)2, 0, &xTask2);
+			vTaskSuspend(xTask2);
+		}
 		release_dd_task(xTask2, PERIODIC, 2, now, T2_period);
 	}else if(timerID == 3){
-		xTaskCreate(user_defined_task, "T3", 128, (void*)3, 0, &xTask3);
-		vTaskSuspend(xTask3);
+		if (now < 20){
+			xTaskCreate(user_defined_task, "T3", configMINIMAL_STACK_SIZE*2, (void*)3, 0, &xTask3);
+			vTaskSuspend(xTask3);
+		}
 		release_dd_task(xTask3, PERIODIC, 3, now, T3_period);
 	}
 }
@@ -372,15 +378,15 @@ static void user_defined_task(void *pvParameters) {
 
     if (my_id == 1) execution_time_ms = T1_exTime;
 	else if (my_id == 2) execution_time_ms = T2_exTime;
-	else  execution_time_ms = T3_exTime;
+	else if (my_id == 3) execution_time_ms = T3_exTime;
 
-    //printf("Test1");
+    //printf("*");
 
     for(;;) {
 
         uint32_t start_tick = xTaskGetTickCount();
         while ((xTaskGetTickCount() - start_tick) < pdMS_TO_TICKS(execution_time_ms)) {
-        	 //printf("in loop");
+        	 //printf("%u ", my_id);
         }
 
         complete_dd_task(my_id);
@@ -414,7 +420,7 @@ static void monitor_task(void *pvParameters) {
         while(curr != NULL) { overdue_count++; curr = curr->next_task; }
 
         // 3. Report system information to console
-        printf("\n--- Monitor Report (%u ms) ---\n", (unsigned int)xTaskGetTickCount());
+//        printf("\n--- Monitor Report (%u ms) ---\n", (unsigned int)xTaskGetTickCount());
 //        printf("Active Tasks: %u\n", (unsigned int)active_count);
 //        printf("Completed Tasks: %u\n", (unsigned int)complete_count);
 //        printf("Overdue Tasks: %u\n", (unsigned int)overdue_count);
