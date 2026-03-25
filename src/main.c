@@ -56,22 +56,6 @@
 // #define T3_exTime 200
 
 /* **************************************************** */
-//
-// typedef struct dd_task {
-//     TaskHandle_t t_handle;
-//     task_type type;
-//     uint32_t task_id;
-//     uint32_t release_time;
-//     uint32_t absolute_deadline;
-//     uint32_t completion_time;
-// } dd_task;
-//
-// //there is a list.h that has pre-built list functionality we should use that instead because it apprently also has sorting. Ill try to implement it
-// typedef struct dd_task_list {
-//     dd_task task;
-//     struct dd_task_list *next_task;
-//     // ListItem_t list_item;
-// } dd_task_list;
 
 typedef struct {
     uint8_t msg_type; // Release, Complete, Get Active list
@@ -92,6 +76,9 @@ static void task2(void *pvParameters);
 static void task3(void *pvParameters);
 static void assign_task_priorities(dd_task_list *head);
 
+TimerHandle_t T1Timer;
+TimerHandle_t T2Timer;
+TimerHandle_t T3Timer;  
 
 void release_dd_task(TaskHandle_t t_handle, task_type type, uint32_t task_id, uint32_t deadline);
 void complete_dd_task(uint32_t task_id);
@@ -109,6 +96,10 @@ int main(void)
     xactive_Queue = xQueueCreate(1, sizeof(dd_task_list*));
     xcomplete_Queue = xQueueCreate(1, sizeof(dd_task_list*));
     xoverdue_Queue = xQueueCreate(1, sizeof(dd_task_list*));
+
+    T1Timer = xTimerCreate("T1_Timer", pdMS_TO_TICKS(T1_period), pdTRUE, (void*)1, ReleaseCallback1);
+    T2Timer = xTimerCreate("T2_Timer", pdMS_TO_TICKS(T2_period), pdTRUE, (void*)2, ReleaseCallback2);
+    T3Timer = xTimerCreate("T3_Timer", pdMS_TO_TICKS(T3_period), pdTRUE, (void*)3, ReleaseCallback3);
 
     /* 2. Create the Manager Task (Highest Priority) [cite: 582] */
     xTaskCreate(dd_scheduler, "DDS", configMINIMAL_STACK_SIZE, NULL, dds_PRIORITY, NULL);
@@ -150,15 +141,15 @@ static void dd_scheduler(void *pvParameters) {
                     break;
 
                 case GET_ACTIVE_LIST:
-                    // xQueueSend(xactive_Queue, &active_list_head, 0);
+                     xQueueSend(xactive_Queue, &active_list_head, 0);
                     break;
 
                 case GET_COMPLETE_LIST:
-                    // xQueueSend(xcomplete_Queue, &complete_list_head, 0);
+                     xQueueSend(xcomplete_Queue, &complete_list_head, 0);
                     break;
 
                 case GET_OVERDUE_LIST:
-                    // xQueueSend(xoverdue_Queue, &overdue_list_head, 0);
+                     xQueueSend(xoverdue_Queue, &overdue_list_head, 0);
                     break;
 
                 default:
@@ -169,18 +160,6 @@ static void dd_scheduler(void *pvParameters) {
 
             // --- EDF PRIORITY SWAP ---
             assign_task_priorities(active_list_head);
-
-            // if (active_list_head != NULL) {
-            //     // Earliest deadline gets HIGH priority
-            //     vTaskPrioritySet(active_list_head->task.t_handle, user_task_HIGH);
-            //
-            //     // All other active tasks get LOW priority
-            //     dd_task_list *temp = active_list_head->next_task;
-            //     while(temp != NULL) {
-            //         vTaskPrioritySet(temp->task.t_handle, user_task_LOW);
-            //         temp = temp->next_task;
-            //     }
-            // }
         }
     }
 }
@@ -196,6 +175,19 @@ void release_dd_task(TaskHandle_t t_handle, task_type type, uint32_t task_id, ui
     msg.task_info.absolute_deadline = release + deadline;
 
     xQueueSend(xDDS_Queue, &msg, 0);
+}
+
+void ReleaseCallback1(TimerHandle_t xTimer) {
+    uint32_t now = xTaskGetTickCount();
+    release_dd_task(xTask1, PERIODIC, 1, now, T1_period);
+}
+void ReleaseCallback2(TimerHandle_t xTimer) {
+    uint32_t now = xTaskGetTickCount();
+    release_dd_task(xTask2, PERIODIC, 1, now, T1_period);
+}
+void ReleaseCallback3(TimerHandle_t xTimer) {
+    uint32_t now = xTaskGetTickCount();
+    release_dd_task(xTask3, PERIODIC, 1, now, T1_period);
 }
 
 void complete_dd_task(uint32_t task_id) {
@@ -235,7 +227,7 @@ dd_task_list* get_overdue_dd_task_list(void) {
 
 /* --- Auxiliary Tasks --- */
 static void dd_task_generator(void *pvParameters) {
-    // Handles for the three worker tasks
+
     TaskHandle_t xTask1, xTask2, xTask3;
 
     xTaskCreate(user_defined_task, "T1", 128, (void*)1, 0, &xTask1);
@@ -246,7 +238,7 @@ static void dd_task_generator(void *pvParameters) {
         uint32_t now = xTaskGetTickCount();
         
         if (now % T1_period == 0) {
-            release_dd_task(xTask1, PERIODIC, 1, now, T1_period); 
+            xTimerStart()
         }
 
         if (now % T2_period == 0) {
@@ -316,7 +308,7 @@ static void monitor_task(void *pvParameters) {
     }
 }
 
-void assign_task_priorities(dd_task_list *head){
+void assign_task   _priorities(dd_task_list *head){
     dd_task_list *current = head;
 
     if (current == NULL) {
