@@ -111,9 +111,13 @@ int main(void)
     T2Timer = xTimerCreate("T2_Timer", pdMS_TO_TICKS(T2_period), pdTRUE, (void*)2, ReleaseCallback2);
     T3Timer = xTimerCreate("T3_Timer", pdMS_TO_TICKS(T3_period), pdTRUE, (void*)3, ReleaseCallback3);
 
+    xTaskCreate(user_defined_task, "T1", 128, (void*)1, 0, &xTask1);
+    xTaskCreate(user_defined_task, "T2", 128, (void*)2, 0, &xTask2);
+    xTaskCreate(user_defined_task, "T3", 128, (void*)3, 0, &xTask3);
+
     xTaskCreate(dd_scheduler, "DDS", configMINIMAL_STACK_SIZE, NULL, dds_PRIORITY, NULL);
     xTaskCreate(dd_task_generator, "Generator", configMINIMAL_STACK_SIZE, NULL, generator_PRIORITY, NULL);
-    xTaskCreate(monitor_task, "Monitor", configMINIMAL_STACK_SIZE, NULL, monitor_PRIORITY, NULL);
+    xTaskCreate(monitor_task, "Monitor", 512 , NULL, monitor_PRIORITY, NULL);
 
     vTaskStartScheduler();
    for(;;);
@@ -148,15 +152,15 @@ static void dd_scheduler(void *pvParameters) {
                     break;
 
                 case GET_ACTIVE_LIST:
-                    // xQueueSend(xactive_Queue, &active_list_head, 0);
+                    xQueueSend(xactive_Queue, &active_list_head, 0);
                     break;
 
                 case GET_COMPLETE_LIST:
-                    // xQueueSend(xcomplete_Queue, &complete_list_head, 0);
+                    xQueueSend(xcomplete_Queue, &completed_list_head, 0);
                     break;
 
                 case GET_OVERDUE_LIST:
-                    // xQueueSend(xoverdue_Queue, &overdue_list_head, 0);
+                    xQueueSend(xoverdue_Queue, &overdue_list_head, 0);
                     break;
 
                 default:
@@ -239,28 +243,33 @@ static void dd_task_generator(void *pvParameters) {
 	switch(id){
 		case 1:
 
-			xTaskCreate(user_defined_task, "T1", 128, (void*)1, 0, &xTask1);
+			//xTaskCreate(user_defined_task, "T1", 128, (void*)1, 0, &xTask1);
 
 			vTaskSuspend(xTask1);
 
 			release_dd_task(xTask1, PERIODIC, 1, now, T1_period);
 
+			break;
+
 		case 2:
 
-			xTaskCreate(user_defined_task, "T2", 128, (void*)2, 0, &xTask2);
-
+			//xTaskCreate(user_defined_task, "T2", 128, (void*)2, 0, &xTask2);
 
 			vTaskSuspend(xTask2);
 
 			release_dd_task(xTask2, PERIODIC, 2, now, T2_period);
 
+			break;
+
 		case 3:
 
-			xTaskCreate(user_defined_task, "T3", 128, (void*)3, 0, &xTask3);
+			//xTaskCreate(user_defined_task, "T3", 128, (void*)3, 0, &xTask3);
 
 			vTaskSuspend(xTask3);
 
 			release_dd_task(xTask3, PERIODIC, 3, now, T3_period);
+
+			break;
 
 	}
 
