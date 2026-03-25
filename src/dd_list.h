@@ -41,6 +41,6 @@ dd_task_list* remove_node(dd_task_list **head, uint32_t task_id);
 void print_list(dd_task_list *head);
 void sort_list(dd_task_list *head);
 void move_to_list(dd_task_list **origin_list, dd_task_list **destination_list, uint32_t task_id);
-int find(dd_task_list **head, uint32_t task_id);
+int find(dd_task_list *head, uint32_t task_id);
 
 #endif
