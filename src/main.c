@@ -77,8 +77,6 @@ static void dd_task_generator2(void *pvParameters);
 static void dd_task_generator3(void *pvParameters);
 static void user_defined_task(void *pvParameters);
 
-TaskHandle_t xTask1, xTask2, xTask3;
-
 TimerHandle_t T1Timer;
 TimerHandle_t T2Timer;
 TimerHandle_t T3Timer;
@@ -116,10 +114,12 @@ int main(void)
 //    xTaskCreate(user_defined_task, "T2", 128, (void*)2, 0, &xTask2);
 //    xTaskCreate(user_defined_task, "T3", 128, (void*)3, 0, &xTask3);
 
+    printf("SOMETHING!!!!");
+
     xTaskCreate(dd_scheduler, "DDS", configMINIMAL_STACK_SIZE, NULL, dds_PRIORITY, NULL);
-    xTaskCreate(dd_task_generator1, "Generator1", configMINIMAL_STACK_SIZE, NULL, generator_PRIORITY, xTask1);
-    xTaskCreate(dd_task_generator2, "Generator2", configMINIMAL_STACK_SIZE, NULL, generator_PRIORITY, xTask2);
-    xTaskCreate(dd_task_generator3, "Generator3", configMINIMAL_STACK_SIZE, NULL, generator_PRIORITY, xTask3);
+    xTaskCreate(dd_task_generator1, "Generator1", configMINIMAL_STACK_SIZE, NULL, generator_PRIORITY, NULL);
+    xTaskCreate(dd_task_generator2, "Generator2", configMINIMAL_STACK_SIZE, NULL, generator_PRIORITY, NULL);
+    xTaskCreate(dd_task_generator3, "Generator3", configMINIMAL_STACK_SIZE, NULL, generator_PRIORITY, NULL);
     xTaskCreate(monitor_task, "Monitor", 512 , NULL, monitor_PRIORITY, NULL);
 
     vTaskStartScheduler();
@@ -129,6 +129,7 @@ int main(void)
 
 /* --- Core Scheduler Logic --- */
 static void dd_scheduler(void *pvParameters) {
+	printf("SOMETHING1!!!!");
 
     xTimerStart(T1Timer, 0);
     xTimerStart(T2Timer, 0);
@@ -138,6 +139,8 @@ static void dd_scheduler(void *pvParameters) {
     dd_task_list* completed_list_head = NULL;
     dd_task_list* overdue_list_head = NULL;
     dds_msg rcvd_msg;
+
+    printf("SOMETHING2!!!!");
 
     for(;;) {
         while(xQueueReceive(xDDS_Queue, &rcvd_msg, portMAX_DELAY)) {
@@ -151,6 +154,7 @@ static void dd_scheduler(void *pvParameters) {
                     }
                     add_to_list(&active_list_head, &rcvd_msg.task_info);
                     vTaskResume(rcvd_msg.task_info.t_handle);
+                    printf("SOMETHING3!!!!");
                     break;
 
                 case COMPLETE:
@@ -270,6 +274,8 @@ dd_task_list* get_overdue_dd_task_list(void) {
 //}
 
 static void dd_task_generator1(void *pvParameters) {
+	TaskHandle_t xTask1;
+
 	uint32_t now = xTaskGetTickCount();
 
 	xTaskCreate(user_defined_task, "T1", 128, (void*)1, 0, &xTask1);
@@ -283,6 +289,8 @@ static void dd_task_generator1(void *pvParameters) {
 }
 
 static void dd_task_generator2(void *pvParameters) {
+	TaskHandle_t xTask2;
+
 	uint32_t now = xTaskGetTickCount();
 
 	xTaskCreate(user_defined_task, "T2", 128, (void*)2, 0, &xTask2);
@@ -296,6 +304,8 @@ static void dd_task_generator2(void *pvParameters) {
 }
 
 static void dd_task_generator3(void *pvParameters) {
+	TaskHandle_t xTask3;
+
 	uint32_t now = xTaskGetTickCount();
 
 	xTaskCreate(user_defined_task, "T3", 128, (void*)3, 0, &xTask3);
