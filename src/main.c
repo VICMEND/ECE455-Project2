@@ -72,10 +72,12 @@ QueueHandle_t xoverdue_Queue;
 
 static void dd_scheduler(void *pvParameters);
 static void monitor_task(void *pvParameters);
-static void dd_task_generator1(void *pvParameters);
-static void dd_task_generator2(void *pvParameters);
-static void dd_task_generator3(void *pvParameters);
+//static void dd_task_generator1(void *pvParameters);
+//static void dd_task_generator2(void *pvParameters);
+//static void dd_task_generator3(void *pvParameters);
 static void user_defined_task(void *pvParameters);
+
+TaskHandle_t xTask1, xTask2, xTask3;
 
 TimerHandle_t T1Timer;
 TimerHandle_t T2Timer;
@@ -90,6 +92,7 @@ static void assign_task_priorities(dd_task_list *head);
 
 void release_dd_task(TaskHandle_t t_handle, task_type type, uint32_t task_id, uint32_t release, uint32_t deadline);
 void complete_dd_task(uint32_t task_id);
+static void dd_task_generator();
 
 dd_task_list *get_active_dd_task_list(void);
 dd_task_list *get_complete_dd_task_list(void);
@@ -106,21 +109,27 @@ int main(void)
     xcomplete_Queue = xQueueCreate(1, sizeof(dd_task_list*));
     xoverdue_Queue = xQueueCreate(1, sizeof(dd_task_list*));
 
-    T1Timer = xTimerCreate("T1_Timer", pdMS_TO_TICKS(T1_period), pdTRUE, (void*)1, ReleaseCallback1);
-    T2Timer = xTimerCreate("T2_Timer", pdMS_TO_TICKS(T2_period), pdTRUE, (void*)2, ReleaseCallback2);
-    T3Timer = xTimerCreate("T3_Timer", pdMS_TO_TICKS(T3_period), pdTRUE, (void*)3, ReleaseCallback3);
+    T1Timer = xTimerCreate("T1_Timer", pdMS_TO_TICKS(T1_period), pdTRUE, (void*)1, dd_task_generator);
+    T2Timer = xTimerCreate("T2_Timer", pdMS_TO_TICKS(T2_period), pdTRUE, (void*)2, dd_task_generator);
+    T3Timer = xTimerCreate("T3_Timer", pdMS_TO_TICKS(T3_period), pdTRUE, (void*)3, dd_task_generator);
+    xTimerStart(T1Timer, 0);
+    xTimerStart(T2Timer, 0);
+    xTimerStart(T3Timer, 0);
 
 //    xTaskCreate(user_defined_task, "T1", 128, (void*)1, 0, &xTask1);
 //    xTaskCreate(user_defined_task, "T2", 128, (void*)2, 0, &xTask2);
 //    xTaskCreate(user_defined_task, "T3", 128, (void*)3, 0, &xTask3);
 
-    printf("SOMETHING!!!!");
+    printf("Release!!!!");
+    xTaskCreate(dd_scheduler, "DDS", configMINIMAL_STACK_SIZE*2, NULL, dds_PRIORITY, NULL);
+//    xTaskCreate(dd_task_generator1, "Generator1", configMINIMAL_STACK_SIZE, NULL, generator_PRIORITY, NULL);
+//    xTaskCreate(dd_task_generator2, "Generator2", configMINIMAL_STACK_SIZE, NULL, generator_PRIORITY, NULL);
+//    xTaskCreate(dd_task_generator3, "Generator3", configMINIMAL_STACK_SIZE, NULL, generator_PRIORITY, NULL);
+    xTaskCreate(monitor_task, "Monitor", configMINIMAL_STACK_SIZE, NULL, monitor_PRIORITY, NULL);
 
-    xTaskCreate(dd_scheduler, "DDS", configMINIMAL_STACK_SIZE, NULL, dds_PRIORITY, NULL);
-    xTaskCreate(dd_task_generator1, "Generator1", configMINIMAL_STACK_SIZE, NULL, generator_PRIORITY, NULL);
-    xTaskCreate(dd_task_generator2, "Generator2", configMINIMAL_STACK_SIZE, NULL, generator_PRIORITY, NULL);
-    xTaskCreate(dd_task_generator3, "Generator3", configMINIMAL_STACK_SIZE, NULL, generator_PRIORITY, NULL);
-    xTaskCreate(monitor_task, "Monitor", 512 , NULL, monitor_PRIORITY, NULL);
+    dd_task_generator(T1Timer);
+    dd_task_generator(T2Timer);
+    dd_task_generator(T3Timer);
 
     vTaskStartScheduler();
    for(;;);
@@ -129,37 +138,37 @@ int main(void)
 
 /* --- Core Scheduler Logic --- */
 static void dd_scheduler(void *pvParameters) {
-	printf("SOMETHING1!!!!");
-
-    xTimerStart(T1Timer, 0);
-    xTimerStart(T2Timer, 0);
-    xTimerStart(T3Timer, 0);
-
+	//printf("1");
     dd_task_list* active_list_head = NULL;
     dd_task_list* completed_list_head = NULL;
     dd_task_list* overdue_list_head = NULL;
     dds_msg rcvd_msg;
 
-    printf("SOMETHING2!!!!");
 
     for(;;) {
-        while(xQueueReceive(xDDS_Queue, &rcvd_msg, portMAX_DELAY)) {
+        if(xQueueReceive(xDDS_Queue, &rcvd_msg, portMAX_DELAY)) {
             uint32_t current_time = xTaskGetTickCount();
 
             switch (rcvd_msg.msg_type)
             {
                 case RELEASE:
+                	//printf("Release!!!!");
                     if(find(active_list_head, rcvd_msg.task_info.task_id)){
+                    	//printf("in if!!!!");
                     	move_to_list(&active_list_head, &overdue_list_head, rcvd_msg.task_info.task_id);
                     }
                     add_to_list(&active_list_head, &rcvd_msg.task_info);
+                    //printf("2");
                     vTaskResume(rcvd_msg.task_info.t_handle);
-                    printf("SOMETHING3!!!!");
+                    //printf("Done release!!!!");
                     break;
 
                 case COMPLETE:
+                	//printf("Complete!!!!");
                     rcvd_msg.task_info.completion_time = current_time;
+                    //printf("current time!!!!");
                     move_to_list(&active_list_head, &completed_list_head, rcvd_msg.task_info.task_id);
+                    //printf("SOMETHING7!!!!");
                     break;
 
                 case GET_ACTIVE_LIST:
@@ -178,6 +187,7 @@ static void dd_scheduler(void *pvParameters) {
                     // Unknown message type
                     break;
             }
+            //printf("end switch!!!!");
 
 
             // --- EDF PRIORITY SWAP ---
@@ -234,7 +244,24 @@ dd_task_list* get_overdue_dd_task_list(void) {
     return overdue_list_head;
 }
 
-/* --- Auxiliary Tasks --- */
+static void dd_task_generator(TimerHandle_t xTimer) {
+	uint32_t timerID = pvTimerGetTimerID(xTimer);
+	uint32_t now = xTaskGetTickCount();
+	if(timerID == 1){
+		xTaskCreate(user_defined_task, "T1", 128, (void*)1, 0, &xTask1);
+		vTaskSuspend(xTask1);
+		release_dd_task(xTask1, PERIODIC, 1, now, T1_period);
+	}else if(timerID == 2){
+		xTaskCreate(user_defined_task, "T2", 128, (void*)2, 0, &xTask2);
+		vTaskSuspend(xTask2);
+		release_dd_task(xTask2, PERIODIC, 2, now, T2_period);
+	}else if(timerID == 3){
+		xTaskCreate(user_defined_task, "T3", 128, (void*)3, 0, &xTask3);
+		vTaskSuspend(xTask3);
+		release_dd_task(xTask3, PERIODIC, 3, now, T3_period);
+	}
+}
+
 //static void dd_task_generator(void *pvParameters) {
 //	uint32_t now = xTaskGetTickCount();
 //	int id;
@@ -273,71 +300,73 @@ dd_task_list* get_overdue_dd_task_list(void) {
 //	}
 //}
 
-static void dd_task_generator1(void *pvParameters) {
-	TaskHandle_t xTask1;
+//static void dd_task_generator1(void *pvParameters) {
+//	TaskHandle_t xTask1;
+//
+//	uint32_t now = xTaskGetTickCount();
+//
+//	xTaskCreate(user_defined_task, "T1", 128, (void*)1, 0, &xTask1);
+//
+//	vTaskSuspend(xTask1);
+//
+//	release_dd_task(xTask1, PERIODIC, 1, now, T1_period);
+//
+//	vTaskSuspend( NULL );
+//
+//}
+//
+//static void dd_task_generator2(void *pvParameters) {
+//	TaskHandle_t xTask2;
+//
+//	uint32_t now = xTaskGetTickCount();
+//
+//	xTaskCreate(user_defined_task, "T2", 128, (void*)2, 0, &xTask2);
+//
+//	vTaskSuspend(xTask2);
+//
+//	release_dd_task(xTask2, PERIODIC, 2, now, T2_period);
+//
+//	vTaskSuspend( NULL );
+//
+//}
+//
+//static void dd_task_generator3(void *pvParameters) {
+//	TaskHandle_t xTask3;
+//
+//	uint32_t now = xTaskGetTickCount();
+//
+//	xTaskCreate(user_defined_task, "T3", 128, (void*)3, 0, &xTask3);
+//
+//	vTaskSuspend(xTask3);
+//
+//	release_dd_task(xTask3, PERIODIC, 3, now, T3_period);
+//
+//	vTaskSuspend( NULL );
+//
+//}
 
-	uint32_t now = xTaskGetTickCount();
-
-	xTaskCreate(user_defined_task, "T1", 128, (void*)1, 0, &xTask1);
-
-	vTaskSuspend(xTask1);
-
-	release_dd_task(xTask1, PERIODIC, 1, now, T1_period);
-
-	vTaskSuspend( NULL );
-
-}
-
-static void dd_task_generator2(void *pvParameters) {
-	TaskHandle_t xTask2;
-
-	uint32_t now = xTaskGetTickCount();
-
-	xTaskCreate(user_defined_task, "T2", 128, (void*)2, 0, &xTask2);
-
-	vTaskSuspend(xTask2);
-
-	release_dd_task(xTask2, PERIODIC, 2, now, T2_period);
-
-	vTaskSuspend( NULL );
-
-}
-
-static void dd_task_generator3(void *pvParameters) {
-	TaskHandle_t xTask3;
-
-	uint32_t now = xTaskGetTickCount();
-
-	xTaskCreate(user_defined_task, "T3", 128, (void*)3, 0, &xTask3);
-
-	vTaskSuspend(xTask3);
-
-	release_dd_task(xTask3, PERIODIC, 3, now, T3_period);
-
-	vTaskSuspend( NULL );
-
-}
-
-void ReleaseCallback1(TimerHandle_t xTimer) {
-	int id = 1;
-	xQueueSend(xGen_Queue, &id, 0);
-    vTaskResume(dd_task_generator1);
-}
-
-void ReleaseCallback2(TimerHandle_t xTimer) {
-	int id = 2;
-	xQueueSend(xGen_Queue, &id, 0);
-	vTaskResume(dd_task_generator2);
-}
-
-void ReleaseCallback3(TimerHandle_t xTimer) {
-	int id = 3;
-	xQueueSend(xGen_Queue, &id, 0);
-	vTaskResume(dd_task_generator3);
-}
+//void ReleaseCallback1(TimerHandle_t xTimer) {
+//	int id = 1;
+//	xQueueSend(xGen_Queue, &id, 0);
+//    vTaskResume(dd_task_generator);
+//}
+//
+//void ReleaseCallback2(TimerHandle_t xTimer) {
+//	int id = 2;
+//	xQueueSend(xGen_Queue, &id, 0);
+//	vTaskResume(dd_task_generator);
+//}
+//
+//void ReleaseCallback3(TimerHandle_t xTimer) {
+//	int id = 3;
+//	xQueueSend(xGen_Queue, &id, 0);
+//	vTaskResume(dd_task_generator);
+//}
 
 static void user_defined_task(void *pvParameters) {
 	uint32_t my_id = (uint32_t)pvParameters;
+
+	//printf("In Task: %u", my_id);
 
     uint32_t execution_time_ms;
 
@@ -345,16 +374,19 @@ static void user_defined_task(void *pvParameters) {
 	else if (my_id == 2) execution_time_ms = T2_exTime;
 	else  execution_time_ms = T3_exTime;
 
+    //printf("Test1");
+
     for(;;) {
 
         uint32_t start_tick = xTaskGetTickCount();
         while ((xTaskGetTickCount() - start_tick) < pdMS_TO_TICKS(execution_time_ms)) {
-            // Busy wait to simulate execution [cite: 636]
+        	 //printf("in loop");
         }
 
         complete_dd_task(my_id);
 
-        vTaskSuspend(NULL); // Wait for next release
+        vTaskSuspend(NULL);
+        //vTaskDelete(NULL);
     }
 }
 
