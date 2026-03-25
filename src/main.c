@@ -88,6 +88,9 @@ static void user_defined_task(void *pvParameters);
 TimerHandle_t T1Timer;
 TimerHandle_t T2Timer;
 TimerHandle_t T3Timer;
+//TimerHandle_t T4Timer;
+//TimerHandle_t StartTimer;
+
 
 void ReleaseCallback1(TimerHandle_t xTimer);
 void ReleaseCallback2(TimerHandle_t xTimer);
@@ -125,9 +128,16 @@ int main(void)
     T1Timer = xTimerCreate("T1_Timer", pdMS_TO_TICKS(T1_period), pdTRUE, (void*)1, dd_task_generator);
     T2Timer = xTimerCreate("T2_Timer", pdMS_TO_TICKS(T2_period), pdTRUE, (void*)2, dd_task_generator);
     T3Timer = xTimerCreate("T3_Timer", pdMS_TO_TICKS(T3_period), pdTRUE, (void*)3, dd_task_generator);
+    //T4Timer = xTimerCreate("T3_Timer", pdMS_TO_TICKS(50), pdFALSE, (void*)4, dd_task_generator);
+    //StartTimer = xTimerCreate("Start_Timer", pdMS_TO_TICKS(1), pdFALSE, (void*)4, dd_task_generator);
     xTimerStart(T1Timer, 0);
     xTimerStart(T2Timer, 0);
     xTimerStart(T3Timer, 0);
+    //xTimerStart(T4Timer, 0);
+    //xTimerStart(StartTimer, 0);
+//	dd_task_generator(T1Timer);
+//	dd_task_generator(T2Timer);
+//	dd_task_generator(T3Timer);
 
 //    xTaskCreate(user_defined_task, "T1", 128, (void*)1, 0, &xTask1);
 //    xTaskCreate(user_defined_task, "T2", 128, (void*)2, 0, &xTask2);
@@ -149,21 +159,6 @@ int main(void)
 static void dd_scheduler(void *pvParameters) {
 	//printf("dd_scheduler\n");
 
-//	dd_task_generator(T1Timer);
-//	printf("After gen\n");
-//	xTaskCreate(user_defined_task, "T1", configMINIMAL_STACK_SIZE*2, (void*)1, 0, &xTask1);
-//	printf("after create\n");
-//	vTaskSuspend(xTask1);
-//	printf("after suspend\n");
-//
-//	xTaskCreate(user_defined_task, "T2", configMINIMAL_STACK_SIZE*2, (void*)2, 0, &xTask2);
-//	vTaskSuspend(xTask2);
-//	dd_task_generator(T2Timer);
-//
-//	xTaskCreate(user_defined_task, "T3", configMINIMAL_STACK_SIZE*2, (void*)3, 0, &xTask3);
-//	vTaskSuspend(xTask3);
-//	dd_task_generator(T3Timer);
-
     dd_task_list* active_list_head = NULL;
     dd_task_list* completed_list_head = NULL;
     dd_task_list* overdue_list_head = NULL;
@@ -171,6 +166,7 @@ static void dd_scheduler(void *pvParameters) {
 
     for(;;) {
         if(xQueueReceive(xDDS_Queue, &rcvd_msg, portMAX_DELAY)) {
+//        	assign_task_priorities(active_list_head);
             uint32_t current_time = xTaskGetTickCount();
 
             switch (rcvd_msg.msg_type)
@@ -183,8 +179,8 @@ static void dd_scheduler(void *pvParameters) {
                     }
                     add_to_list(&active_list_head, &rcvd_msg.task_info);
                     //printf("release after add");
-                    vTaskResume(rcvd_msg.task_info.t_handle);
-                    printf("Task: %d, Release: %d, Complete %d, Deadline %d\n", rcvd_msg.task_info.task_id , rcvd_msg.task_info.release_time, rcvd_msg.task_info.completion_time, rcvd_msg.task_info.absolute_deadline);
+//                    vTaskResume(active_list_head->task.t_handle);
+                    printf("Task: %u, Release: %u, Deadline %u\n", rcvd_msg.task_info.task_id , rcvd_msg.task_info.release_time, rcvd_msg.task_info.absolute_deadline);
                     break;
 
                 case COMPLETE:
@@ -193,7 +189,7 @@ static void dd_scheduler(void *pvParameters) {
                     move_to_list(&active_list_head, &completed_list_head, rcvd_msg.task_info.task_id);
                     //printf("SOMETHING7!!!!");
                     //printf("Done Complete");
-                    printf("Task: %d, Release: %d, Complete %d, Deadline %d\n", rcvd_msg.task_info.task_id , rcvd_msg.task_info.release_time, rcvd_msg.task_info.completion_time, rcvd_msg.task_info.absolute_deadline);
+                    printf("Task: %u, Complete %u\n", rcvd_msg.task_info.task_id, rcvd_msg.task_info.completion_time);
                     break;
 
                 case GET_ACTIVE_LIST:
@@ -279,23 +275,37 @@ static void dd_task_generator(TimerHandle_t xTimer) {
 	uint32_t now = xTaskGetTickCount();
 	if(timerID == 1){
 		TaskHandle_t xTask1;
-		xTaskCreate(user_defined_task, "T1", configMINIMAL_STACK_SIZE*2, (void*)1, 0, &xTask1);
-		vTaskSuspend(xTask1);
+		xTaskCreate(user_defined_task, "T1", configMINIMAL_STACK_SIZE*2, (void*)1, user_task_LOW, &xTask1);
+//		xTaskCreate(user_defined_task, "T1", configMINIMAL_STACK_SIZE*2, (void*)1, 0, &xTask1);
+//		vTaskSuspend(xTask1);
 		//printf("Task Suspended\n");
 		release_dd_task(xTask1, PERIODIC, 1, now, T1_period);
 		//printf("Task released\n");
 	}else if(timerID == 2){
 		TaskHandle_t xTask2;
-		xTaskCreate(user_defined_task, "T2", configMINIMAL_STACK_SIZE*2, (void*)2, 0, &xTask2);
-		vTaskSuspend(xTask2);
+		xTaskCreate(user_defined_task, "T2", configMINIMAL_STACK_SIZE*2, (void*)2, user_task_LOW, &xTask2);
+		//vTaskSuspend(xTask2);
+//		xTaskCreate(user_defined_task, "T2", configMINIMAL_STACK_SIZE*2, (void*)2, 0, &xTask2);
+//		vTaskSuspend(xTask2);
 		release_dd_task(xTask2, PERIODIC, 2, now, T2_period);
 	}else if(timerID == 3){
 		TaskHandle_t xTask3;
-		xTaskCreate(user_defined_task, "T3", configMINIMAL_STACK_SIZE*2, (void*)3, 0, &xTask3);
-		vTaskSuspend(xTask3);
+		xTaskCreate(user_defined_task, "T3", configMINIMAL_STACK_SIZE*2, (void*)3, user_task_LOW, &xTask3);
+//		xTaskCreate(user_defined_task, "T3", configMINIMAL_STACK_SIZE*2, (void*)3, 0, &xTask3);
+//		vTaskSuspend(xTask3);
+		release_dd_task(xTask3, PERIODIC, 3, now, T3_period);
+	}else if(timerID == 4){
+		TaskHandle_t xTask1, xTask2, xTask3;
+
+		xTaskCreate(user_defined_task, "T1", configMINIMAL_STACK_SIZE*2, (void*)1, user_task_LOW, &xTask1);
+		release_dd_task(xTask1, PERIODIC, 1, now, T1_period);
+
+		xTaskCreate(user_defined_task, "T2", configMINIMAL_STACK_SIZE*2, (void*)2, user_task_LOW, &xTask2);
+		release_dd_task(xTask2, PERIODIC, 2, now, T2_period);
+
+		xTaskCreate(user_defined_task, "T3", configMINIMAL_STACK_SIZE*2, (void*)3, user_task_LOW, &xTask3);
 		release_dd_task(xTask3, PERIODIC, 3, now, T3_period);
 	}
-	//printf("End Gen\n");
 }
 
 //static void dd_task_generator(void *pvParameters) {
@@ -410,7 +420,7 @@ static void user_defined_task(void *pvParameters) {
 	else if (my_id == 2) execution_time_ms = T2_exTime;
 	else if (my_id == 3) execution_time_ms = T3_exTime;
 
-    printf("*");
+    //printf("*");
 
     for(;;) {
 
