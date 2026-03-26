@@ -37,7 +37,8 @@ typedef struct dd_task_list {
 // Linked List API
 // -----------------------------
 void add_to_list(dd_task_list **head,dd_task *new_task);
-dd_task_list* remove_node(dd_task_list **head, uint32_t task_id);
+//dd_task_list* remove_node(dd_task_list **head, uint32_t task_id);
+void remove_node(dd_task_list **head, uint32_t task_id);
 void print_list(dd_task_list *head);
 void sort_list(dd_task_list *head);
 void move_to_list(dd_task_list **origin_list, dd_task_list **destination_list, uint32_t task_id);
